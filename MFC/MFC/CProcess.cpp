@@ -25,7 +25,7 @@ CProcess::~CProcess()
 }
 
 // 스레드 함수
-void ThreadProcess(CImage* pImage, CRect rect, CPoint* ptResult)
+void ThreadProcess(CImage* pImage, CRect rect, CPoint* ptResult, int* nTotal)
 {
 	auto start = system_clock::now();
 
@@ -34,7 +34,6 @@ void ThreadProcess(CImage* pImage, CRect rect, CPoint* ptResult)
 
 	int nSumX = 0;
 	int nSumY = 0;
-	int nTotal = 0;
 	for (int j = rect.top; j < rect.bottom; ++j)
 	{
 		for (int i = rect.left; i < rect.right; ++i)
@@ -43,7 +42,7 @@ void ThreadProcess(CImage* pImage, CRect rect, CPoint* ptResult)
 			{
 				nSumX += i;
 				nSumY += j;
-				++nTotal;
+				++(*nTotal);
 			}
 		}
 	}
@@ -51,19 +50,40 @@ void ThreadProcess(CImage* pImage, CRect rect, CPoint* ptResult)
 	auto millisec = duration_cast<milliseconds>(end - start);
 	cout << "[Thread]\t" << millisec.count() << "ms\n";
 
-	ptResult->x = nSumX / nTotal;
-	ptResult->y = nSumY / nTotal;
+	ptResult->x += nSumX;
+	ptResult->y += nSumY;
 }
 
 CPoint CProcess::GetCenter(CImage* pImage)
 {
 	auto start = system_clock::now();
 
-	CRect rect(0, 0, pImage->GetWidth(), pImage->GetHeight());
-	CPoint ptResult;
+	int nWidth = pImage->GetWidth() / 2;
+	int nHeight = pImage->GetHeight() / 2;
 
-	thread _thread(ThreadProcess, pImage, rect, &ptResult);
-	_thread.join();
+	CRect rectDefault(0, 0, nWidth, nHeight);
+	CRect rect[4];
+	for(int i = 0; i < 4; ++i)
+	{
+		rect[i] = rectDefault;
+		rect[i].OffsetRect(nWidth * (i % 2), nHeight * (i / 2));
+	}
+
+	CPoint ptResult;
+	int nTotal = 0;
+
+	thread _thread0(ThreadProcess, pImage, rect[0], &ptResult, &nTotal);
+	thread _thread1(ThreadProcess, pImage, rect[1], &ptResult, &nTotal);
+	thread _thread2(ThreadProcess, pImage, rect[2], &ptResult, &nTotal);
+	thread _thread3(ThreadProcess, pImage, rect[3], &ptResult, &nTotal);
+
+	_thread0.join();
+	_thread1.join();
+	_thread2.join();
+	_thread3.join();
+
+	ptResult.x /= nTotal;
+	ptResult.y /= nTotal;
 
 	auto end = system_clock::now();
 	auto millisec = duration_cast<milliseconds>(end - start);
